@@ -48,47 +48,58 @@
         .glass-panel { background: rgba(24, 24, 27, 0.6); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
     </style>
 </head>
-<body class="h-[100dvh] w-full overflow-hidden flex justify-center">
+<!-- h-[100dvh] und h-screen Fallback für maximale Kompatibilität -->
+<body class="h-screen h-[100dvh] w-full overflow-hidden flex justify-center">
 
     <div id="root" class="w-full max-w-md h-full relative flex flex-col bg-zinc-950 border-x border-zinc-900 shadow-2xl" style="padding-top: var(--sat); padding-bottom: var(--sab);"></div>
 
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // Audio Engine
-        const playSound = (type) => {
-            try {
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                if (!AudioContext) return;
-                const ctx = new AudioContext();
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                
-                if (type === 'success') {
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(880, ctx.currentTime); 
-                    osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.1); 
-                    gain.gain.setValueAtTime(0.15, ctx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
-                    osc.start(ctx.currentTime);
-                    osc.stop(ctx.currentTime + 0.15);
-                } else {
-                    osc.type = 'sawtooth';
-                    osc.frequency.setValueAtTime(150, ctx.currentTime);
-                    osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.15);
-                    gain.gain.setValueAtTime(0.1, ctx.currentTime);
-                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
-                    osc.start(ctx.currentTime);
-                    osc.stop(ctx.currentTime + 0.2);
+        // BUGFIX: Audio Engine als Singleton, um Abstürze durch Kontext-Limits zu verhindern
+        const AudioEngine = (() => {
+            let ctx = null;
+            return {
+                play: (type) => {
+                    try {
+                        if (!window.AudioContext && !window.webkitAudioContext) return;
+                        if (!ctx) {
+                            ctx = new (window.AudioContext || window.webkitAudioContext)();
+                        }
+                        if (ctx.state === 'suspended') {
+                            ctx.resume();
+                        }
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        
+                        if (type === 'success') {
+                            osc.type = 'sine';
+                            osc.frequency.setValueAtTime(880, ctx.currentTime); 
+                            osc.frequency.exponentialRampToValueAtTime(1760, ctx.currentTime + 0.1); 
+                            gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+                            osc.start(ctx.currentTime);
+                            osc.stop(ctx.currentTime + 0.15);
+                        } else {
+                            osc.type = 'sawtooth';
+                            osc.frequency.setValueAtTime(150, ctx.currentTime);
+                            osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.15);
+                            gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                            gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+                            osc.start(ctx.currentTime);
+                            osc.stop(ctx.currentTime + 0.2);
+                        }
+                    } catch(e) { console.error("Audio error", e); }
                 }
-            } catch(e) { console.error("Audio failed", e); }
-        };
+            };
+        })();
 
+        const playSound = AudioEngine.play;
         const SUCCESS_MSGS = ["Richtig!", "Klasse gemacht!", "Super!", "Exzellent!", "Stark!", "Perfekt!"];
 
-        // 30 Validated JLPT N5/N4 Lessons mit reparierter Datenstruktur (options & answer)
+        // 30 Validated JLPT N5/N4 Lessons
         const LESSONS = [
             { id: 1, radical: "木", name: "Holz",
                 foundation: { text: "Stamm und Wurzeln eines Baumes.", question: "Was bedeutet dieses Radikal?", options: ["Holz / Baum", "Feuer", "Wasser"], answer: 0, explanation: "木 ist die Basis für alles mit Bäumen." },
@@ -343,17 +354,15 @@
                             setView('path');
                         }}
                         onFail={() => {
-                            setHearts(h => {
-                                if (h <= 1) { setView('gameover'); return 0; }
-                                return h - 1;
-                            });
+                            setHearts(h => Math.max(0, h - 1));
                         }}
                         onQuit={() => setView('path')}
+                        onGameOver={() => setView('gameover')}
                         hearts={hearts}
                     />;
         };
 
-        const LessonView = ({ lesson, onComplete, onFail, onQuit, hearts }) => {
+        const LessonView = ({ lesson, onComplete, onFail, onQuit, onGameOver, hearts }) => {
             const [phase, setPhase] = useState(0); 
             const [rapidStep, setRapidStep] = useState(0);
             const [feedback, setFeedback] = useState(null);
@@ -376,7 +385,7 @@
                 playSound('error');
                 setShake(true); setTimeout(() => setShake(false), 400);
                 setFeedback({ status: 'wrong', title: 'FALSCH', msg });
-                onFail(); // Zieht ein Herz ab
+                onFail(); 
             };
 
             const handleCheck = (answerObj) => {
@@ -388,7 +397,6 @@
                         setFeedback({ status: 'correct', title: randMsg, msg: 'Muster erfolgreich identifiziert.' });
                     } else {
                         triggerWrong("Da war ein falsches Zeichen dabei.");
-                        setSelectedGrid([]); // Zurücksetzen für den neuen Versuch
                     }
                     return;
                 }
@@ -406,10 +414,18 @@
                 const wasWrong = feedback?.status === 'wrong';
                 setFeedback(null);
                 
-                // ZWEITE CHANCE: Wenn es falsch war, bleibe in der aktuellen Phase!
-                if (wasWrong) return; 
+                // Zuerst prüfen, ob Game Over erreicht wurde
+                if (hearts <= 0) {
+                    onGameOver();
+                    return;
+                }
                 
-                // Wenn richtig, gehe weiter zur nächsten Phase
+                // Zweite Chance Logik: Falsche Antworten löschen, aber auf gleicher Frage bleiben
+                if (wasWrong) {
+                    if (phase === 1) setSelectedGrid([]);
+                    return; 
+                }
+                
                 if (phase === 4) {
                     if (rapidStep < 2) setRapidStep(r => r + 1);
                     else onComplete();
@@ -424,7 +440,6 @@
 
             return (
                 <div className="flex-1 flex flex-col h-full bg-zinc-950 font-sans text-zinc-100 overflow-hidden relative">
-                    {/* Header */}
                     <div className="h-16 px-4 flex items-center shrink-0 z-10">
                         <button onClick={onQuit} className="w-10 h-10 flex items-center justify-center text-zinc-500 hover:text-zinc-100">✕</button>
                         <div className="flex-1 mx-4 bg-zinc-900 rounded-full h-1.5 overflow-hidden">
@@ -436,7 +451,8 @@
                         </div>
                     </div>
 
-                    <div className={`flex-1 flex flex-col min-h-0 w-full max-w-md mx-auto px-6 ${shake ? 'animate-shake' : ''}`}>
+                    {/* overflow-y-auto stellt sicher, dass man bei Mini-Displays scrollen kann statt dass Buttons verschwinden */}
+                    <div className={`flex-1 flex flex-col min-h-0 overflow-y-auto w-full max-w-md mx-auto px-6 ${shake ? 'animate-shake' : ''}`}>
                         
                         <div className="flex-1 flex flex-col items-center justify-center min-h-0 mb-4 animate-popIn">
                             <h2 className="text-xs uppercase tracking-widest text-emerald-500/80 mb-auto mt-2 font-semibold">
@@ -444,8 +460,8 @@
                             </h2>
                             
                             {phase === 0 && (
-                                <div className="text-center">
-                                    <div className="text-8xl mb-6 text-zinc-100 font-serif drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">{lesson.radical}</div>
+                                <div className="text-center w-full">
+                                    <div className="text-7xl sm:text-8xl mb-6 text-zinc-100 font-serif drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">{lesson.radical}</div>
                                     <p className="text-zinc-400 text-sm font-light leading-relaxed">{lesson.foundation.text}</p>
                                 </div>
                             )}
@@ -463,7 +479,7 @@
                             )}
 
                             {phase === 3 && (
-                                <div className="text-6xl text-white font-serif tracking-widest drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">
+                                <div className="text-5xl sm:text-6xl text-white font-serif tracking-widest drop-shadow-[0_0_15px_rgba(255,255,255,0.1)]">
                                     {lesson.vocab.word}
                                 </div>
                             )}
@@ -514,7 +530,6 @@
                         </div>
                     </div>
 
-                    {/* Footer Feedback */}
                     <div className="h-28 shrink-0 w-full border-t border-white/5 bg-zinc-950 flex flex-col justify-center px-6 relative z-20">
                         {feedback ? (
                             <div className="flex items-center justify-between w-full h-full animate-popIn">
@@ -524,8 +539,8 @@
                                     </h3>
                                     {feedback.msg && <p className="text-zinc-400 text-xs mt-1 leading-snug">{feedback.msg}</p>}
                                 </div>
-                                <button onClick={handleNext} className={`shrink-0 px-8 py-3 rounded-lg font-bold text-sm tracking-wide active:scale-95 transition-transform ${feedback.status === 'correct' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'}`}>
-                                    {feedback.status === 'correct' ? 'WEITER' : 'ZWEITE CHANCE'}
+                                <button onClick={handleNext} className={`shrink-0 px-6 py-3 rounded-lg font-bold text-sm tracking-wide active:scale-95 transition-transform ${feedback.status === 'correct' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'}`}>
+                                    {feedback.status === 'correct' ? 'WEITER' : (hearts <= 0 ? 'ENDE' : 'ZWEITE CHANCE')}
                                 </button>
                             </div>
                         ) : phase === 1 ? (
