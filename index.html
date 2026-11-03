@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kanji Quest: Radical Learning</title>
+    
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-10px); }
+            40% { transform: translateX(10px); }
+            60% { transform: translateX(-10px); }
+            80% { transform: translateX(10px); }
+        }
+        .animate-shake { animation: shake 0.4s ease-in-out; }
+        
+        /* Hide scrollbar for path view */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-gray-950 text-white font-sans h-screen w-screen overflow-hidden flex justify-center">
+
+    <div id="root" class="w-full max-w-md h-full relative flex flex-col bg-gray-900 border-x border-gray-800 shadow-2xl"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // 100% Validated Japanese Radical & Kanji Data
+        const LESSONS = [
+            {
+                id: 1, radical: "木", name: "Holz",
+                foundation: {
+                    text: "Stamm und Wurzeln eines Baumes.",
+                    question: "Was bedeutet dieses Radikal?",
+                    options: ["Holz / Baum", "Feuer", "Wasser"],
+                    answer: 0,
+                    explanation: "Korrekt! 木 ist die Basis für alles, was mit Bäumen und Holz zu tun hat."
+                },
+                grid: {
+                    right: ["林", "森", "机", "村"],
+                    wrong: ["炎", "池", "明", "語", "客"]
+                },
+                synthesis: {
+                    equation: "亻 (Mensch) + 木 (Baum) = 休",
+                    question: "Was passiert, wenn ein Mensch sich an einen Baum lehnt?",
+                    options: ["Ausruhen", "Arbeiten", "Schlafen"],
+                    answer: 0,
+                    explanation: "Richtig! Der Mensch (亻) am Baum (木) macht Pause (休)."
+                },
+                vocab: {
+                    word: "休み (Yasumi)",
+                    question: "Was bedeutet dieses Wort?",
+                    options: ["Pause / Urlaub", "Wochenende", "Feierabend"],
+                    answer: 0,
+                    explanation: "休み bedeutet Pause oder Ruhetag."
+                },
+                rapid: [
+                    { q: "Was bedeutet 木?", opts: ["Feuer", "Holz/Baum", "Mensch"], a: 1 },
+                    { q: "Mensch + Baum (休) bedeutet?", opts: ["Ausruhen", "Fällen", "Wachsen"], a: 0 },
+                    { q: "Was bedeutet 休み?", opts: ["Pause", "Schlaf", "Baum"], a: 0 }
+                ]
+            },
+            {
+                id: 2, radical: "日", name: "Sonne",
+                foundation: {
+                    text: "Eine stilisierte Darstellung der Sonne.",
+                    question: "Was bedeutet dieses Radikal?",
+                    options: ["Mond", "Sonne / Tag", "Stern"],
+                    answer: 1,
+                    explanation: "日 ist das Grundzeichen für Sonne und den Tag."
+                },
+                grid: {
+                    right: ["明", "曜", "晴", "春"],
+                    wrong: ["休", "林", "語", "宀", "心"]
+                },
+                synthesis: {
+                    equation: "日 (Sonne) + 月 (Mond) = 明",
+                    question: "Sonne und Mond zusammen. Was bedeutet das?",
+                    options: ["Hell", "Dunkel", "Heiß"],
+                    answer: 0,
+                    explanation: "Sonne und Mond sind die hellsten Himmelskörper. Zusammen bedeuten sie 'Hell' (明)."
+                },
+                vocab: {
+                    word: "明日 (Ashita)",
+                    question: "Wörtlich 'Heller Tag'. Was bedeutet es im Alltag?",
+                    options: ["Gestern", "Heute", "Morgen"],
+                    answer: 2,
+                    explanation: "Der nächste (helle) Tag ist Morgen (Ashita)."
+                },
+                rapid: [
+                    { q: "Was bedeutet 日?", opts: ["Sonne", "Mond", "Stern"], a: 0 },
+                    { q: "Sonne + Mond (明) bedeutet?", opts: ["Hell", "Dunkel", "Universum"], a: 0 },
+                    { q: "Was bedeutet 明日?", opts: ["Morgen", "Gestern", "Heute"], a: 0 }
+                ]
+            },
+            {
+                id: 3, radical: "氵", name: "Wasser",
+                foundation: {
+                    text: "Drei fließende Wassertropfen (Sanzui).",
+                    question: "Was bedeutet dieses Radikal?",
+                    options: ["Feuer", "Regen", "Wasser"],
+                    answer: 2,
+                    explanation: "氵 taucht immer bei Flüssigkeiten oder Gewässern auf."
+                },
+                grid: {
+                    right: ["海", "泳", "汁", "池"],
+                    wrong: ["炎", "木", "晴", "語", "休"]
+                },
+                synthesis: {
+                    equation: "氵 (Wasser) + 毎 (Jeden) = 海",
+                    question: "Jeder Tropfen Wasser fließt letztlich wohin?",
+                    options: ["See", "Meer", "Fluss"],
+                    answer: 1,
+                    explanation: "Das Meer (海) sammelt alles Wasser."
+                },
+                vocab: {
+                    word: "海外 (Kaigai)",
+                    question: "Wörtlich 'Außerhalb des Meeres'. Was bedeutet das?",
+                    options: ["Übersee / Ausland", "Strand", "Insel"],
+                    answer: 0,
+                    explanation: "Kaigai bedeutet Übersee oder Ausland, da Japan eine Insel ist."
+                },
+                rapid: [
+                    { q: "Was ist 氵?", opts: ["Wasser", "Feuer", "Eis"], a: 0 },
+                    { q: "Wasser + Jeden (海) = ?", opts: ["Meer", "Fluss", "Regen"], a: 0 },
+                    { q: "Kaigai (海外) bedeutet?", opts: ["Ausland", "Inland", "Strand"], a: 0 }
+                ]
+            },
+            {
+                id: 4, radical: "心 / 忄", name: "Herz",
+                foundation: {
+                    text: "Ein physisches Herz mit Klappen. (Steht auch seitlich als 忄).",
+                    question: "Was bedeutet dieses Radikal?",
+                    options: ["Bauch", "Auge", "Herz / Geist"],
+                    answer: 2,
+                    explanation: "Zeichen mit Emotionen oder Gedanken enthalten oft 心."
+                },
+                grid: {
+                    right: ["思", "忘", "悲", "情"],
+                    wrong: ["海", "村", "明", "語", "客"]
+                },
+                synthesis: {
+                    equation: "亡 (Verlieren/Sterben) + 心 (Herz) = 忘",
+                    question: "Etwas aus dem Herzen verlieren. Was bedeutet das?",
+                    options: ["Hassen", "Vergessen", "Weinen"],
+                    answer: 1,
+                    explanation: "Wenn etwas aus dem Geist (Herz) verschwindet, vergisst (忘) man es."
+                },
+                vocab: {
+                    word: "忘れる (Wasureru)",
+                    question: "Was bedeutet dieses Verb?",
+                    options: ["Vergeben", "Vergessen", "Erinnern"],
+                    answer: 1,
+                    explanation: "Wasureru bedeutet 'vergessen'."
+                },
+                rapid: [
+                    { q: "Was bedeutet 心?", opts: ["Magen", "Herz", "Gehirn"], a: 1 },
+                    { q: "Verlieren + Herz (忘) = ?", opts: ["Weinen", "Vergessen", "Lachen"], a: 1 },
+                    { q: "Wasureru heißt?", opts: ["Erinnern", "Vergessen", "Hoffen"], a: 1 }
+                ]
+            },
+            {
+                id: 5, radical: "亻", name: "Mensch",
+                foundation: {
+                    text: "Ein stehender Mensch im Profil (Ninben).",
+                    question: "Was bedeutet dieses Radikal?",
+                    options: ["Mensch / Person", "Tier", "Geist"],
+                    answer: 0,
+                    explanation: "亻 wird für alles verwendet, was menschliche Handlungen oder Eigenschaften betrifft."
+                },
+                grid: {
+                    right: ["体", "働", "何", "信"],
+                    wrong: ["忘", "海", "森", "明", "客"]
+                },
+                synthesis: {
+                    equation: "亻 (Mensch) + 言 (Sprechen) = 信",
+                    question: "Ein Mensch, der zu seinem Wort steht. Was drückt das aus?",
+                    options: ["Lügen", "Glauben / Vertrauen", "Rufen"],
+                    answer: 1,
+                    explanation: "Vertrauen (信) entsteht, wenn Menschen zu ihren Worten stehen."
+                },
+                vocab: {
+                    word: "信用 (Shinyou)",
+                    question: "Was bedeutet dieses Wort?",
+                    options: ["Vertrauen", "Verdacht", "Gerücht"],
+                    answer: 0,
+                    explanation: "Shinyou ist das Vertrauen (z.B. in Personen oder Kredite)."
+                },
+                rapid: [
+                    { q: "Was ist 亻?", opts: ["Mensch", "Baum", "Schwert"], a: 0 },
+                    { q: "Mensch + Sprechen (信) = ?", opts: ["Schreien", "Vertrauen", "Flüstern"], a: 1 },
+                    { q: "Shinyou bedeutet?", opts: ["Lüge", "Vertrauen", "Zweifel"], a: 1 }
+                ]
+            },
+            {
+                id: 6, radical: "火 / 灬", name: "Feuer",
+                foundation: {
+                    text: "Züngelnde Flammen (oft als 4 Punkte 灬 am Boden).",
+                    question: "Was bedeutet dieses Radikal?",
+                    options: ["Erde", "Wind", "Feuer"],
+                    answer: 2,
+                    explanation: "Hitze, Kochen und Zerstörung nutzen das Feuer-Radikal."
+                },
+                grid: {
+                    right: ["炎", "焼", "然", "照"],
+                    wrong: ["体", "忘", "海", "林", "明"]
+                },
+                synthesis: {
+                    equation: "火 (Feuer) + 火 (Feuer) = 炎",
+                    question: "Zwei Feuer übereinander. Was ist das?",
+                    options: ["Rauch", "Asche", "Flamme / Hitze"],
+                    answer: 2,
+                    explanation: "Ein doppeltes Feuer erzeugt eine große Flamme (炎)."
+                },
+                vocab: {
+                    word: "炎上 (Enjou)",
+                    question: "Wörtlich 'In Flammen aufsteigen'. Was bedeutet es online?",
+                    options: ["Shitstorm", "Viral gehen", "Gelöscht werden"],
+                    answer: 0,
+                    explanation: "Enjou ist der japanische Begriff für einen Internet-Shitstorm."
+                },
+                rapid: [
+                    { q: "Was ist 火/灬?", opts: ["Wasser", "Feuer", "Licht"], a: 1 },
+                    { q: "Feuer + Feuer (炎) = ?", opts: ["Flamme", "Rauch", "Asche"], a: 0 },
+                    { q: "Was heißt Enjou?", opts: ["Lagerfeuer", "Shitstorm", "Feuerwehr"], a: 1 }
+                ]
+            },
+            {
+                id: 7, radical: "口", name: "Mund",
+                foundation: {
+                    text: "Ein weit geöffneter Mund.",
+                    question: "Was bedeutet dieses Radikal?",
+                    options: ["Fenster", "Mund / Öffnung", "Kasten"],
+                    answer: 1,
+                    explanation: "口 wird für Essen, Sprechen und Eingänge genutzt."
+                },
+                grid: {
+                    right: ["味", "唱", "呼", "吹"],
+                    wrong: ["炎", "忘", "体", "海", "明"]
+                },
+                synthesis: {
+                    equation: "口 (Mund) + 未 (Noch nicht) = 味",
+                    question: "Was man mit dem Mund macht, wenn man etwas noch nicht kennt.",
+                    options: ["Geschmack / Schmecken", "Spucken", "Schlucken"],
+                    answer: 0,
+                    explanation: "Schmecken (味) ist der Test mit dem Mund für das Unbekannte."
+                },
+                vocab: {
+                    word: "意味 (Imi)",
+                    question: "Was bedeutet dieses Wort?",
+                    options: ["Bedeutung / Sinn", "Essen", "Lärm"],
+                    answer: 0,
+                    explanation: "Imi bedeutet 'Bedeutung' oder 'Sinn'."
+                },
+                rapid: [
+                    { q: "Was bedeutet 口?", opts: ["Box", "Mund/Öffnung", "Kreis"], a: 1 },
+                    { q: "Mund + Noch nicht (味) = ?", opts: ["Geschmack", "Hunger", "Durst"], a: 0 },
+                    { q: "Was heißt Imi?", opts: ["Sinnlos", "Bedeutung", "Absicht"], a: 1 }
+                ]
+            },
+            {
+                id: 8, radical: "宀", name: "Dach",
+                foundation: {
+                    text: "Das Dach eines Hauses mit Schornstein oder First.",
+                    question: "Was bedeutet dieses Radikal?",
+                    options: ["Hut", "Dach / Haus", "Berg"],
+                    answer: 1,
+                    explanation: "Zeichen mit 宀 drehen sich um Gebäude, Innenräume oder Schutz."
+                },
+                grid: {
+                    right: ["家", "室", "客", "安"],
+                    wrong: ["味", "炎", "忘", "体", "海"]
+                },
+                synthesis: {
+                    equation: "宀 (Dach) + 女 (Frau) = 安",
+                    question: "Eine Frau sicher unter einem Dach. Was drückt das aus?",
+                    options: ["Gefährlich", "Friedlich / Sicher", "Laut"],
+                    answer: 1,
+                    explanation: "Sicherheit unter einem Dach bedeutet Frieden (安). Im modernen Gebrauch auch 'billig'."
+                },
+                vocab: {
+                    word: "安心 (Anshin)",
+                    question: "Frieden (安) + Herz (心) = ?",
+                    options: ["Panik", "Liebe", "Erleichterung / Seelenfrieden"],
+                    answer: 2,
+                    explanation: "Ein friedliches Herz bedeutet Erleichterung (Anshin)."
+                },
+                rapid: [
+                    { q: "Was ist 宀?", opts: ["Dach", "Pfeil", "Himmel"], a: 0 },
+                    { q: "Dach + Frau (安) = ?", opts: ["Gefahr", "Frieden/Sicher", "Arbeit"], a: 1 },
+                    { q: "Was heißt Anshin?", opts: ["Stress", "Erleichterung", "Angst"], a: 1 }
+                ]
+            },
+            {
+                id: 9, radical: "言", name: "Sprechen",
+                foundation: {
+                    text: "Schallwellen, die aus einem Mund (口) kommen.",
+                    question: "Was bedeutet dieses Radikal?",
+                    options: ["Essen", "Sprechen / Wort", "Musik"],
+                    answer: 1,
+                    explanation: "言 ist das Radikal für Sprache, Worte und Kommunikation."
+                },
+                grid: {
+                    right: ["語", "話", "読", "記"],
+                    wrong: ["家", "味", "炎", "忘", "体"]
+                },
+                synthesis: {
+                    equation: "言 (Sprechen) + 吾 (Ich) = 語",
+                    question: "Worte, die zu mir gehören bzw. die man selbst spricht.",
+                    options: ["Geheimnis", "Schrei", "Sprache / Wort"],
+                    answer: 2,
+                    explanation: "Die eigenen Worte formen die Sprache (語)."
+                },
+                vocab: {
+                    word: "日本語 (Nihongo)",
+                    question: "Was bedeutet das?",
+                    options: ["Japanische Sprache", "Japanisches Essen", "Japanische Kultur"],
+                    answer: 0,
+                    explanation: "Japan (Nihon) + Sprache (Go) = Japanisch."
+                },
+                rapid: [
+                    { q: "Was bedeutet 言?", opts: ["Ohr", "Sprechen/Wort", "Auge"], a: 1 },
+                    { q: "Sprechen + Ich (語) = ?", opts: ["Sprache", "Schweigen", "Denken"], a: 0 },
+                    { q: "Was ist Nihongo?", opts: ["Japaner", "Japanisch", "Japan"], a: 1 }
+                ]
+            },
+            {
+                id: 10, radical: "刀 / 刂", name: "Schwert",
+                foundation: {
+                    text: "Die geschwungene Klinge eines Katana.",
+                    question: "Was bedeutet dieses Radikal?",
+                    options: ["Löffel", "Stock", "Schwert / Messer"],
+                    answer: 2,
+                    explanation: "Zeichen mit 刀/刂 haben oft mit Schneiden, Trennen oder Klingen zu tun."
+                },
+                grid: {
+                    right: ["切", "分", "判", "割"],
+                    wrong: ["語", "家", "味", "炎", "忘"]
+                },
+                synthesis: {
+                    equation: "七 (Sieben) + 刀 (Schwert) = 切",
+                    question: "Etwas mit dem Schwert in sieben Teile...",
+                    options: ["Schneiden", "Stechen", "Kämpfen"],
+                    answer: 0,
+                    explanation: "Sieben Schwertstreiche bedeuten ganz klar 'Schneiden' (切)."
+                },
+                vocab: {
+                    word: "大切 (Taisetsu)",
+                    question: "Groß (大) + Schneiden (切) = ? (Was man für sich herausschneidet)",
+                    options: ["Wichtig / Bedeutend", "Gefährlich", "Scharf"],
+                    answer: 0,
+                    explanation: "Dinge, die man 'groß ausschneidet', sind einem Wichtig (Taisetsu)."
+                },
+                rapid: [
+                    { q: "Was ist 刀/刂?", opts: ["Schwert", "Pfeil", "Bogen"], a: 0 },
+                    { q: "Sieben + Schwert (切) = ?", opts: ["Blocken", "Schneiden", "Stechen"], a: 1 },
+                    { q: "Taisetsu bedeutet?", opts: ["Unwichtig", "Scharf", "Wichtig"], a: 2 }
+                ]
+            }
+        ];
+
+        // --- COMPONENTS ---
+
+        const HeartIcon = ({ filled }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={filled ? "#ef4444" : "none"} stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+            </svg>
+        );
+
+        function shuffle(array) {
+            let currentIndex = array.length, randomIndex;
+            while (currentIndex !== 0) {
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+            }
+            return array;
+        }
+
+        const App = () => {
+            const [view, setView] = useState('path'); // 'path', 'lesson', 'gameover'
+            const [unlocked, setUnlocked] = useState(1);
+            const [hearts, setHearts] = useState(5);
+            const [activeLessonId, setActiveLessonId] = useState(1);
+
+            // Path View
+            if (view === 'path') {
+                return (
+                    <div className="flex-1 flex flex-col h-full overflow-hidden">
+                        <div className="p-4 flex justify-between items-center bg-gray-900 border-b border-gray-800 shrink-0">
+                            <h1 className="text-xl font-bold text-white tracking-widest">KANJI QUEST</h1>
+                            <div className="flex gap-1 items-center font-bold text-red-500">
+                                <HeartIcon filled={true} /> {hearts}
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto no-scrollbar p-8 flex flex-col-reverse items-center justify-start gap-12 pt-24 pb-24">
+                            {LESSONS.map((lesson, idx) => {
+                                const isUnlocked = lesson.id <= unlocked;
+                                const isCurrent = lesson.id === unlocked;
+                                const offset = idx % 2 === 0 ? '-translate-x-6' : 'translate-x-6';
+                                return (
+                                    <button 
+                                        key={lesson.id}
+                                        disabled={!isUnlocked}
+                                        onClick={() => { setActiveLessonId(lesson.id); setView('lesson'); }}
+                                        className={`w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold transition-transform shadow-lg ${offset} 
+                                            ${isUnlocked ? 'bg-green-500 hover:scale-105 active:scale-95 text-white' : 'bg-gray-800 text-gray-600'}
+                                            ${isCurrent ? 'ring-4 ring-green-300 ring-offset-4 ring-offset-gray-900 animate-bounce' : ''}`}
+                                    >
+                                        {lesson.radical}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                );
+            }
+
+            if (view === 'gameover') {
+                return (
+                    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+                        <HeartIcon filled={false} />
+                        <h2 className="text-3xl font-bold text-red-500 mt-4 mb-2">Keine Leben mehr!</h2>
+                        <p className="text-gray-400 mb-8">Lade deine Leben auf, um weiterzulernen.</p>
+                        <button onClick={() => { setHearts(5); setView('path'); }} className="w-full bg-blue-500 text-white font-bold py-4 rounded-2xl">
+                            Neu starten
+                        </button>
+                    </div>
+                );
+            }
+
+            return <LessonView 
+                        lesson={LESSONS.find(l => l.id === activeLessonId)} 
+                        onComplete={() => {
+                            if (activeLessonId === unlocked) setUnlocked(u => Math.min(10, u + 1));
+                            setView('path');
+                        }}
+                        onFail={() => {
+                            setHearts(h => {
+                                if (h <= 1) { setView('gameover'); return 0; }
+                                return h - 1;
+                            });
+                        }}
+                        onQuit={() => setView('path')}
+                        hearts={hearts}
+                    />;
+        };
+
+        const LessonView = ({ lesson, onComplete, onFail, onQuit, hearts }) => {
+            const [phase, setPhase] = useState(0); // 0:Found, 1:Grid, 2:Synth, 3:Vocab, 4:Rapid
+            const [rapidStep, setRapidStep] = useState(0);
+            
+            const [feedback, setFeedback] = useState(null); // { status: 'correct'|'wrong', msg: '' }
+            const [shake, setShake] = useState(false);
+            
+            // Grid State
+            const [gridItems, setGridItems] = useState([]);
+            const [selectedGrid, setSelectedGrid] = useState([]);
+
+            useEffect(() => {
+                if (phase === 1) {
+                    const items = [
+                        ...lesson.grid.right.map(char => ({ char, isRight: true })),
+                        ...lesson.grid.wrong.map(char => ({ char, isRight: false }))
+                    ];
+                    setGridItems(shuffle(items));
+                    setSelectedGrid([]);
+                }
+            }, [phase, lesson]);
+
+            const triggerWrong = (msg) => {
+                setShake(true); setTimeout(() => setShake(false), 400);
+                setFeedback({ status: 'wrong', msg });
+                onFail();
+            };
+
+            const handleCheck = (answerObj) => {
+                if (phase === 1) {
+                    // Grid Check
+                    const allCorrect = selectedGrid.every(idx => gridItems[idx].isRight) && selectedGrid.length === 4;
+                    if (allCorrect) {
+                        setFeedback({ status: 'correct', msg: 'Perfekt! Du hast das Muster erkannt.' });
+                    } else {
+                        triggerWrong("Falsch. Eines oder mehrere Zeichen enthalten das Radikal nicht.");
+                        setSelectedGrid([]);
+                    }
+                    return;
+                }
+
+                // Multiple Choice Checks
+                if (answerObj.selected === answerObj.correct) {
+                    setFeedback({ status: 'correct', msg: answerObj.explanation || "Richtig!" });
+                } else {
+                    triggerWrong(answerObj.explanation || "Das war leider falsch.");
+                }
+            };
+
+            const handleNext = () => {
+                setFeedback(null);
+                if (phase === 4) {
+                    if (rapidStep < 2) setRapidStep(r => r + 1);
+                    else onComplete();
+                } else {
+                    setPhase(p => p + 1);
+                }
+            };
+
+            const progress = ((phase * 10 + (phase === 4 ? rapidStep * 3 : 0)) / 50) * 100;
+
+            return (
+                <div className="flex-1 flex flex-col h-full bg-gray-950 relative">
+                    {/* Header */}
+                    <div className="p-4 flex items-center gap-4 shrink-0">
+                        <button onClick={onQuit} className="text-gray-500 hover:text-white">✕</button>
+                        <div className="flex-1 bg-gray-800 rounded-full h-3 overflow-hidden">
+                            <div className="bg-green-500 h-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
+                        </div>
+                        <div className="flex gap-1 items-center font-bold text-red-500">
+                            <HeartIcon filled={true} /> {hearts}
+                        </div>
+                    </div>
+
+                    {/* Content Body */}
+                    <div className={`flex-1 overflow-y-auto p-6 flex flex-col ${shake ? 'animate-shake' : ''}`}>
+                        
+                        {/* PHASE 0: Foundation */}
+                        {phase === 0 && (
+                            <div className="flex-1 flex flex-col">
+                                <h2 className="text-xl font-bold mb-4 text-gray-400">Das Fundament</h2>
+                                <div className="flex-1 flex flex-col items-center justify-center mb-8">
+                                    <div className="text-9xl mb-4 text-white font-serif">{lesson.radical}</div>
+                                    <p className="text-center text-lg text-gray-300">{lesson.foundation.text}</p>
+                                </div>
+                                <h3 className="font-bold mb-4">{lesson.foundation.question}</h3>
+                                <div className="flex flex-col gap-3">
+                                    {lesson.foundation.options.map((opt, i) => (
+                                        <button key={i} onClick={() => !feedback && handleCheck({selected: i, correct: lesson.foundation.answer, explanation: lesson.foundation.explanation})}
+                                                disabled={feedback !== null}
+                                                className="w-full bg-gray-800 border-2 border-gray-700 p-4 rounded-xl text-left font-bold hover:border-blue-500 transition-colors">
+                                            {opt}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* PHASE 1: Grid */}
+                        {phase === 1 && (
+                            <div className="flex-1 flex flex-col">
+                                <h2 className="text-xl font-bold mb-2 text-gray-400">Mustererkennung</h2>
+                                <p className="mb-6">Wähle genau 4 Zeichen, die <span className="font-bold text-blue-400">{lesson.radical}</span> enthalten.</p>
+                                <div className="grid grid-cols-3 gap-3 mb-6">
+                                    {gridItems.map((item, i) => {
+                                        const isSelected = selectedGrid.includes(i);
+                                        return (
+                                            <button key={i} 
+                                                    disabled={feedback !== null}
+                                                    onClick={() => {
+                                                        if (isSelected) setSelectedGrid(selectedGrid.filter(x => x !== i));
+                                                        else if (selectedGrid.length < 4) setSelectedGrid([...selectedGrid, i]);
+                                                    }}
+                                                    className={`aspect-square rounded-2xl text-4xl font-serif flex items-center justify-center transition-all border-2
+                                                        ${isSelected ? 'bg-blue-900 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300'}`}>
+                                                {item.char}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <div className="mt-auto pb-24">
+                                   <button 
+                                        disabled={selectedGrid.length !== 4 || feedback !== null}
+                                        onClick={handleCheck}
+                                        className={`w-full py-4 rounded-2xl font-bold text-lg transition-colors ${selectedGrid.length === 4 ? 'bg-blue-500 text-white' : 'bg-gray-800 text-gray-500'}`}>
+                                        Überprüfen
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* PHASE 2: Synthesis */}
+                        {phase === 2 && (
+                            <div className="flex-1 flex flex-col">
+                                <h2 className="text-xl font-bold mb-4 text-gray-400">Synthese</h2>
+                                <div className="flex-1 flex flex-col items-center justify-center mb-8 bg-gray-800 rounded-3xl p-6 border-2 border-gray-700">
+                                    <div className="text-3xl font-bold text-center tracking-widest">{lesson.synthesis.equation}</div>
+                                </div>
+                                <h3 className="font-bold mb-4">{lesson.synthesis.question}</h3>
+                                <div className="flex flex-col gap-3">
+                                    {lesson.synthesis.options.map((opt, i) => (
+                                        <button key={i} onClick={() => !feedback && handleCheck({selected: i, correct: lesson.synthesis.answer, explanation: lesson.synthesis.explanation})}
+                                                disabled={feedback !== null}
+                                                className="w-full bg-gray-800 border-2 border-gray-700 p-4 rounded-xl text-left font-bold hover:border-blue-500 transition-colors">
+                                            {opt}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* PHASE 3: Vocab */}
+                        {phase === 3 && (
+                            <div className="flex-1 flex flex-col">
+                                <h2 className="text-xl font-bold mb-4 text-gray-400">Im echten Leben</h2>
+                                <div className="flex-1 flex flex-col items-center justify-center mb-8">
+                                    <div className="text-6xl mb-4 text-white font-serif">{lesson.vocab.word}</div>
+                                </div>
+                                <h3 className="font-bold mb-4">{lesson.vocab.question}</h3>
+                                <div className="flex flex-col gap-3">
+                                    {lesson.vocab.options.map((opt, i) => (
+                                        <button key={i} onClick={() => !feedback && handleCheck({selected: i, correct: lesson.vocab.answer, explanation: lesson.vocab.explanation})}
+                                                disabled={feedback !== null}
+                                                className="w-full bg-gray-800 border-2 border-gray-700 p-4 rounded-xl text-left font-bold hover:border-blue-500 transition-colors">
+                                            {opt}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* PHASE 4: Rapid Fire */}
+                        {phase === 4 && (
+                            <div className="flex-1 flex flex-col">
+                                <h2 className="text-xl font-bold mb-4 text-orange-400">Rapid Fire ({rapidStep + 1}/3)</h2>
+                                <div className="flex-1 flex flex-col items-center justify-center mb-8">
+                                    <div className="text-2xl text-center font-bold">{lesson.rapid[rapidStep].q}</div>
+                                </div>
+                                <div className="flex flex-col gap-3">
+                                    {lesson.rapid[rapidStep].opts.map((opt, i) => (
+                                        <button key={i} onClick={() => !feedback && handleCheck({selected: i, correct: lesson.rapid[rapidStep].a, explanation: null})}
+                                                disabled={feedback !== null}
+                                                className="w-full bg-gray-800 border-2 border-gray-700 p-4 rounded-xl text-left font-bold hover:border-blue-500 transition-colors">
+                                            {opt}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                    </div>
+
+                    {/* Feedback Overlay */}
+                    {feedback && (
+                        <div className={`absolute bottom-0 left-0 w-full p-6 pb-8 ${feedback.status === 'correct' ? 'bg-green-100 text-green-900' : 'bg-red-100 text-red-900'} rounded-t-3xl animate-[slideUp_0.2s_ease-out]`}>
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${feedback.status === 'correct' ? 'bg-green-500' : 'bg-red-500'}`}>
+                                    {feedback.status === 'correct' ? '✓' : '✕'}
+                                </div>
+                                <h3 className="text-xl font-bold">{feedback.status === 'correct' ? 'Klasse!' : 'Falsch'}</h3>
+                            </div>
+                            {feedback.msg && <p className="mb-6 font-medium">{feedback.msg}</p>}
+                            <button onClick={handleNext} className={`w-full py-4 rounded-2xl font-bold text-lg text-white shadow-md transition-transform hover:scale-105 active:scale-95 ${feedback.status === 'correct' ? 'bg-green-500' : 'bg-red-500'}`}>
+                                Weiter
+                            </button>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
